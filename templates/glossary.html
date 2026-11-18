@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+    <section class="intro">
+      <h1 class="intro__title">개념 사전</h1>
+      <p class="intro__desc">{{ site.site_name }}의 글에서 쓰는 개념의 정의를 모았습니다. 각 정의 아래에 그 개념을 쓴 글이 이어집니다.</p>
+    </section>
+
+    <dl class="glossary">
+{% for c in concepts %}
+      <div class="term" id="{{ c.id }}">
+        <dt class="term__name">{{ c.ko }} <span class="concept__en">{{ c.en }}</span></dt>
+        <dd class="term__def">{{ c.definition }}</dd>
+{% if c.description %}
+        <dd class="term__desc">{{ c.description }}</dd>
+{% endif %}
+        <dd class="term__used">
+{% if used_by[c.id] %}
+          <span class="term__used-label">이 개념을 쓴 글</span>
+          <ul>
+{% for post in used_by[c.id] %}
+            <li><a href="{{ urls.path(post.slug ~ '/') }}">{{ post.title }}</a></li>
+{% endfor %}
+          </ul>
+{% else %}
+          <span class="term__used-label">아직 이 개념을 쓴 글이 없습니다.</span>
+{% endif %}
+        </dd>
+      </div>
+{% endfor %}
+    </dl>
+{% endblock %}

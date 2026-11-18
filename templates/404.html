@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+    <section class="intro">
+      <h1 class="intro__title">페이지를 찾을 수 없습니다</h1>
+      <p class="intro__desc">주소가 바뀌었거나 삭제된 글일 수 있습니다.</p>
+      <p class="intro__links"><a href="{{ urls.path() }}">글 목록으로</a> · <a href="{{ urls.path('glossary/') }}">개념 사전</a></p>
+    </section>
+{% endblock %}

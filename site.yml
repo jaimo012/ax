@@ -1,0 +1,6 @@
+site_name: (임시) AX 성과 노트
+description: (임시) AI 도입 성과(AX)를 어떻게 재고 설명할지에 대한 개념과 사례를 연재합니다.
+base_url: https://jaimo012.github.io/ax
+author_name: "{{AUTHOR_NAME}}"   # 실명 또는 필명. 나중에 이 한 줄만 바꾸면 전체 반영
+contact_email: "{{CONTACT_EMAIL}}"
+lang: ko

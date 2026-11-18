@@ -1,0 +1,26 @@
+#!/bin/sh
+# 커밋 전 금지어 검사 (본 방어선). public 레포는 푸시한 순간 히스토리에 남으므로 커밋 단계에서 막는다.
+# 금지어 목록은 레포 밖 ~/.ax_banned_terms (줄바꿈 구분). 설치: git config core.hooksPath hooks
+TERMS_FILE="${AX_BANNED_FILE:-$HOME/.ax_banned_terms}"
+ROOT="$(git rev-parse --show-toplevel)"
+
+if [ ! -f "$TERMS_FILE" ]; then
+  echo "[금지어 검사] 목록 파일이 없어 커밋을 막았다: $TERMS_FILE" >&2
+  echo "  줄바꿈으로 구분한 금지어 목록을 이 경로에 만든 뒤 다시 커밋한다." >&2
+  exit 1
+fi
+
+PY=""
+for candidate in py python3 python; do
+  if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c "import sys" >/dev/null 2>&1; then
+    PY="$candidate"
+    break
+  fi
+done
+if [ -z "$PY" ]; then
+  echo "[금지어 검사] 파이썬을 찾지 못해 커밋을 막았다." >&2
+  exit 1
+fi
+
+# --staged: 작업 폴더가 아니라 실제로 커밋될 스테이징 내용을 검사한다
+exec "$PY" "$ROOT/scripts/check_banned.py" --terms-file "$TERMS_FILE" --staged

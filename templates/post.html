@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+    <article class="post">
+      <header class="post__head">
+        <h1 class="post__title">{{ post.title }}</h1>
+        <p class="post__meta">
+          <time datetime="{{ post.date.isoformat() }}">{{ post.date | kdate }}</time>
+{% if post.updated != post.date %}
+          · 수정 <time datetime="{{ post.updated.isoformat() }}">{{ post.updated | kdate }}</time>
+{% endif %}
+          · <span class="post__author">{{ site.author_name }}</span>
+        </p>
+      </header>
+
+      <section class="answer" aria-label="요약 답변">
+        <p class="answer__label">한 줄 답</p>
+        <p class="answer__text">{{ post.summary }}</p>
+      </section>
+
+      <div class="prose">
+{{ post.body_html | safe }}
+      </div>
+
+{% if post.concept_entries %}
+      <section class="concepts" aria-labelledby="concepts-h">
+        <h2 id="concepts-h">이 글에 쓰인 개념</h2>
+        <dl class="concepts__list">
+{% for c in post.concept_entries %}
+          <div class="concept">
+            <dt><a href="{{ urls.path('glossary/') }}#{{ c.id }}">{{ c.ko }}</a> <span class="concept__en">{{ c.en }}</span></dt>
+            <dd>{{ c.definition }}</dd>
+          </div>
+{% endfor %}
+        </dl>
+      </section>
+{% endif %}
+
+{% if post.faq %}
+      <section class="faq" aria-labelledby="faq-h">
+        <h2 id="faq-h">자주 묻는 질문</h2>
+{% for item in post.faq %}
+        <div class="faq__item">
+          <h3>{{ item.q }}</h3>
+          <p>{{ item.a }}</p>
+        </div>
+{% endfor %}
+      </section>
+{% endif %}
+
+      <aside class="cta">
+        <p class="cta__text">이런 문제를 고민하고 있다면 커피챗 환영합니다.</p>
+        <a class="cta__btn" href="{{ mailto }}">메일 보내기</a>
+      </aside>
+    </article>
+{% endblock %}

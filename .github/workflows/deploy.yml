@@ -1,0 +1,54 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 연속 푸시 때 배포가 겹치지 않게 한 번에 하나만 (진행 중인 배포는 끝까지 둔다)
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # sitemap 의 개념 사전 lastmod 를 concepts.yml 마지막 커밋 날짜로 잡기 위해 전체 기록이 필요
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: 패키지 설치
+        run: pip install "markdown>=3.11,<4" "pyyaml>=6,<7" "jinja2>=3.1,<4"
+
+      # 2차 방어선: 금지어가 걸리거나 목록(Secret)이 비어 있으면 여기서 배포를 멈춘다
+      - name: 금지어 검사
+        env:
+          BANNED_TERMS: ${{ secrets.BANNED_TERMS }}
+        run: python scripts/check_banned.py
+
+      - name: 빌드 (산출물 자기검사 포함)
+        run: python build.py
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
