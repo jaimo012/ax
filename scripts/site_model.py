@@ -45,6 +45,9 @@ class Post:
     faq: list[dict[str, str]]
     body_html: str
     source: str
+    category: str
+    reading_minutes: int
+    toc: list[dict[str, str]]  # 본문 h2 → [{"id", "name"}]
     concept_entries: list[dict] = field(default_factory=list)
 
 

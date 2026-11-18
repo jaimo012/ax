@@ -8,19 +8,21 @@
 from __future__ import annotations
 
 import datetime as dt
+import html
 import logging
 import re
 import shutil
 import sys
-from urllib.parse import quote
 
 import markdown
 import yaml
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 from markdown.extensions.toc import slugify_unicode
 
-from scripts.site_extras import article_jsonld, faq_jsonld, glossary_jsonld, render_feed, render_llms, render_sitemap
-from scripts.site_model import OUT_DIR, POSTS_DIR, ROOT, BuildError, Post, Urls, write
+from scripts.md_ext import AxExtension, MarkdownContentError
+from scripts.render_pages import korean_date, render_pages
+from scripts.site_extras import render_feed, render_llms, render_sitemap
+from scripts.site_model import OUT_DIR, POSTS_DIR, ROOT, BuildError, Post, Urls
 from scripts.verify_site import verify_output
 
 for _stream in (sys.stdout, sys.stderr):  # 윈도우 콘솔(cp949)에서 한글 로그가 깨지지 않게
@@ -31,11 +33,15 @@ logger = logging.getLogger("build")
 
 POST_FILENAME = re.compile(r"^(\d{4}-\d{2}-\d{2})-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$")
 FRONT_MATTER = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*(?:\n(.*))?\Z", re.DOTALL)
+TAG = re.compile(r"<[^>]+>")
 REQUIRED_POST_KEYS: tuple[str, ...] = ("title", "slug", "summary", "date")
-REQUIRED_SITE_KEYS: tuple[str, ...] = ("site_name", "description", "base_url", "author_name", "contact_email", "lang")
+REQUIRED_SITE_KEYS: tuple[str, ...] = ("site_name", "description", "base_url", "author_name", "contact_email", "lang",
+                                       "default_category")
 REQUIRED_CONCEPT_KEYS: tuple[str, ...] = ("id", "ko", "en", "definition")
-RESERVED_SLUGS: frozenset[str] = frozenset({"glossary", "static"})
+RESERVED_SLUGS: frozenset[str] = frozenset({"glossary", "static", "figures"})
 MARKDOWN_EXTENSIONS: tuple[str, ...] = ("extra", "sane_lists", "toc")
+CHARS_PER_MINUTE: int = 500  # 한국어 성인 묵독 속도(분당 글자 수) 기준 읽는 시간
+FIGURES_DIR_NAME: str = "figures"
 
 
 # ────────────────────────────────────────────────────────────
@@ -95,11 +101,10 @@ def read_front_matter(path) -> tuple[dict, str]:
     return meta, found.group(2) or ""
 
 
-def parse_post(path, concept_ids: set[str]) -> Post:
+def validate_meta(path, meta: dict, concept_ids: set[str]) -> tuple[dt.date, dt.date]:
     name_match = POST_FILENAME.match(path.name)
     if not name_match:
         raise BuildError(f"{path.name}: 파일명은 YYYY-MM-DD-slug.md (slug 는 영소문자·숫자·하이픈) 형식이어야 한다")
-    meta, body = read_front_matter(path)
     missing = [key for key in REQUIRED_POST_KEYS if not meta.get(key)]
     if missing:
         raise BuildError(f"{path.name}: front matter 필수 항목 누락: {missing}")
@@ -111,24 +116,37 @@ def parse_post(path, concept_ids: set[str]) -> Post:
         raise BuildError(f"{path.name}: front matter date({date})가 파일명 날짜와 다르다")
     if updated < date:
         raise BuildError(f"{path.name}: updated 가 date 보다 이르다")
-    concepts = list(meta.get("concepts") or [])
-    unknown = [cid for cid in concepts if cid not in concept_ids]
+    unknown = [cid for cid in (meta.get("concepts") or []) if cid not in concept_ids]
     if unknown:
         raise BuildError(f"{path.name}: concepts.yml 에 없는 개념 id: {unknown}")
-    faq = list(meta.get("faq") or [])
-    if any(not isinstance(item, dict) or not item.get("q") or not item.get("a") for item in faq):
+    if any(not isinstance(i, dict) or not i.get("q") or not i.get("a") for i in (meta.get("faq") or [])):
         raise BuildError(f"{path.name}: faq 항목은 q 와 a 가 모두 있어야 한다")
+    return date, updated
+
+
+def parse_post(path, concept_ids: set[str], site: dict, urls: Urls) -> Post:
+    meta, body = read_front_matter(path)
+    date, updated = validate_meta(path, meta, concept_ids)
     if re.search(r"^# ", body, re.MULTILINE):
         logger.warning("%s: 본문에 # (h1) 제목이 있다. 제목은 front matter title 하나뿐이니 ## 부터 쓴다", path.name)
-    converter = markdown.Markdown(extensions=list(MARKDOWN_EXTENSIONS),
+    converter = markdown.Markdown(extensions=[*MARKDOWN_EXTENSIONS, AxExtension(base_path=urls.base_path)],
                                   extension_configs={"toc": {"slugify": slugify_unicode}})
+    try:
+        body_html = converter.convert(body)
+    except MarkdownContentError as exc:
+        raise BuildError(f"{path.name}: {exc}") from exc
+    plain_chars = len(re.sub(r"\s+", "", html.unescape(TAG.sub("", body_html))))
+    toc = [{"id": t["id"], "name": html.unescape(t["name"])} for t in converter.toc_tokens if t["level"] == 2]
     return Post(title=str(meta["title"]), slug=meta["slug"], summary=str(meta["summary"]).strip(), date=date,
-                updated=updated, concepts=concepts, faq=[{"q": str(i["q"]), "a": str(i["a"])} for i in faq],
-                body_html=converter.convert(body), source=path.name)
+                updated=updated, concepts=list(meta.get("concepts") or []),
+                faq=[{"q": str(i["q"]), "a": str(i["a"])} for i in (meta.get("faq") or [])],
+                body_html=body_html, source=path.name, category=str(meta.get("category") or site["default_category"]),
+                reading_minutes=max(1, round(plain_chars / CHARS_PER_MINUTE)), toc=toc)
 
 
-def load_posts(concepts: list[dict]) -> list[Post]:
-    posts = [parse_post(path, {c["id"] for c in concepts}) for path in sorted(POSTS_DIR.glob("*.md"))]
+def load_posts(concepts: list[dict], site: dict, urls: Urls) -> list[Post]:
+    concept_ids = {c["id"] for c in concepts}
+    posts = [parse_post(path, concept_ids, site, urls) for path in sorted(POSTS_DIR.glob("*.md"))]
     slugs = [post.slug for post in posts]
     duplicated = sorted({slug for slug in slugs if slugs.count(slug) > 1})
     if duplicated:
@@ -141,44 +159,17 @@ def load_posts(concepts: list[dict]) -> list[Post]:
     return sorted(posts, key=lambda post: (post.date, post.slug), reverse=True)
 
 
-# ────────────────────────────────────────────────────────────
-# 페이지 생성
-# ────────────────────────────────────────────────────────────
-def korean_date(value: dt.date) -> str:
-    return f"{value.year}년 {value.month}월 {value.day}일"
-
-
-def make_page(title: str, description: str, canonical: str | None, jsonld: list[str], og_type: str = "website") -> dict:
-    return {"title": title, "description": description, "canonical": canonical, "og_type": og_type, "jsonld": jsonld}
-
-
-def render_pages(env: Environment, site: dict, concepts: list[dict], posts: list[Post], urls: Urls) -> None:
-    common = {"site": site, "urls": urls, "year": dt.date.today().year}
-    for post in posts:
-        mailto = f"mailto:{site['contact_email']}?subject={quote('커피챗: ' + post.title)}"
-        jsonld = [article_jsonld(post, site, urls)] + ([faq_jsonld(post)] if post.faq else [])
-        page = make_page(post.title, post.summary, urls.absolute(f"{post.slug}/"), jsonld, og_type="article")
-        write(f"{post.slug}/index.html", env.get_template("post.html").render(**common, page=page, post=post, mailto=mailto))
-
-    used_by = {c["id"]: [p for p in posts if c["id"] in p.concepts] for c in concepts}
-    page = make_page(f"개념 사전 | {site['site_name']}", f"{site['site_name']}에서 쓰는 개념의 정의 모음",
-                     urls.absolute("glossary/"), [glossary_jsonld(concepts, site, urls)])
-    write("glossary/index.html", env.get_template("glossary.html").render(**common, page=page, concepts=concepts, used_by=used_by))
-    page = make_page(site["site_name"], site["description"], urls.absolute(), [])
-    write("index.html", env.get_template("index.html").render(**common, page=page, posts=posts))
-    page = make_page(f"페이지를 찾을 수 없습니다 | {site['site_name']}", site["description"], None, [])  # 404 는 canonical 없음
-    write("404.html", env.get_template("404.html").render(**common, page=page))
-
-
 def main() -> None:
     try:
         site = load_site()
         urls = Urls(site["base_url"])
         concepts = load_concepts()
-        posts = load_posts(concepts)
+        posts = load_posts(concepts, site, urls)
         if OUT_DIR.exists():
             shutil.rmtree(OUT_DIR)
         shutil.copytree(ROOT / "static", OUT_DIR / "static")
+        if (POSTS_DIR / FIGURES_DIR_NAME).is_dir():
+            shutil.copytree(POSTS_DIR / FIGURES_DIR_NAME, OUT_DIR / FIGURES_DIR_NAME)
         env = Environment(loader=FileSystemLoader(ROOT / "templates"), autoescape=select_autoescape(["html"]),
                           undefined=StrictUndefined, trim_blocks=True, lstrip_blocks=True)
         env.filters["kdate"] = korean_date
@@ -190,7 +181,7 @@ def main() -> None:
     except BuildError as exc:
         logger.error("%s", exc)
         sys.exit(1)
-    logger.info("산출물 자기검사 통과 (career 0건 · JSON-LD 유효 · 내부 링크 정상 · 필수 파일 존재)")
+    logger.info("산출물 자기검사 통과 (career 0건 · JSON-LD 유효 · 내부 링크·앵커 정상 · 필수 파일 존재)")
     logger.info("빌드 완료: 글 %d편 · 개념 %d개 → %s", len(posts), len(concepts), OUT_DIR.name)
 
 

@@ -16,6 +16,8 @@ templates/                 Jinja2 템플릿 (base·post·index·glossary·404)
 static/style.css           스타일
 build.py                   원고 읽기·검증 → 페이지 생성 → _site/
 scripts/site_model.py      공용 모델 (경로·URL·글 데이터)
+scripts/md_ext.py          마크다운 확장 (수식 블록·그림 캡션·alt 검사)
+scripts/render_pages.py    HTML 페이지 생성
 scripts/site_extras.py     JSON-LD · sitemap.xml · feed.xml · llms.txt
 scripts/verify_site.py     산출물 자기검사
 scripts/check_banned.py    금지어 검사
@@ -47,6 +49,27 @@ faq:
 ---
 본문 마크다운 (제목은 title 하나뿐이므로 본문 소제목은 ## 부터)
 ```
+
+선택 항목: `category: 관찰 노트` (글 머리 분류 라벨. 없으면 `site.yml` 의 `default_category`)
+
+### 본문 특수 문법
+
+수식은 인용구(`>`)가 아니라 수식 전용 블록으로 씁니다.
+
+````markdown
+```formula
+잠재 절감액 = 작업당 절감시간 × 연간 빈도 × 시간당 인건비 × 실현계수
+```
+````
+
+그림은 `posts/figures/` 에 넣고, 문단에 그림 하나만 둡니다. 따옴표 안 문구가 캡션이 됩니다.
+
+```markdown
+![계약 형태별 절감분 귀속 도식](figures/contract-flow.svg "그림 1. 계약 형태별 절감분 귀속")
+```
+
+대체텍스트(`[]` 안)가 비어 있으면 빌드가 실패합니다. AI 가 그림 내용을 읽는 통로라서입니다.
+목차는 본문 `##` 소제목으로 자동 생성되고, 읽는 시간은 글자 수(분당 500자)로 계산됩니다.
 
 ### 개념 추가
 

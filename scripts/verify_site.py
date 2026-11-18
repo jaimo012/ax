@@ -28,8 +28,10 @@ def resolve_link(urls: Urls, page_rel: str, link: str) -> tuple[Path, str] | Non
     absolute_prefix = urls.base_url.rstrip("/") + "/"
     if link.startswith(absolute_prefix):
         link = urls.base_path + link[len(absolute_prefix):]
-    elif link.startswith(EXTERNAL_PREFIXES) or link.startswith("#"):
+    elif link.startswith(EXTERNAL_PREFIXES):
         return None
+    elif link.startswith("#"):  # 같은 페이지 앵커(목차 등)도 실제 id 가 있는지 본다
+        return OUT_DIR / page_rel, link[1:]
     if not link.startswith("/"):  # 상대 링크는 페이지 위치 기준으로 푼다 (#조각은 떼고 경로만 정규화)
         rel_path, hash_mark, rel_fragment = link.partition("#")
         page_dir = posixpath.dirname(urls.base_path + page_rel)

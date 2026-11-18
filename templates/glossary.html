@@ -1,31 +1,34 @@
 {% extends "base.html" %}
 {% block content %}
+  <div class="narrow">
     <section class="intro">
       <h1 class="intro__title">개념 사전</h1>
       <p class="intro__desc">{{ site.site_name }}의 글에서 쓰는 개념의 정의를 모았습니다. 각 정의 아래에 그 개념을 쓴 글이 이어집니다.</p>
     </section>
 
-    <dl class="glossary">
 {% for c in concepts %}
-      <div class="term" id="{{ c.id }}">
-        <dt class="term__name">{{ c.ko }} <span class="concept__en">{{ c.en }}</span></dt>
-        <dd class="term__def">{{ c.definition }}</dd>
+    <article class="term" id="{{ c.id }}">
+      <h2 class="term__name">
+        {{ c.ko }} <span class="concept-card__en">{{ c.en }}</span>
+        <a class="term__anchor" href="#{{ c.id }}" aria-label="{{ c.ko }} 정의로 바로 가는 링크">#</a>
+      </h2>
+      <p class="term__def">{{ c.definition }}</p>
 {% if c.description %}
-        <dd class="term__desc">{{ c.description }}</dd>
+      <p class="term__desc">{{ c.description }}</p>
 {% endif %}
-        <dd class="term__used">
+      <div class="term__used">
 {% if used_by[c.id] %}
-          <span class="term__used-label">이 개념을 쓴 글</span>
-          <ul>
+        <p class="term__used-label">이 개념을 쓴 글</p>
+        <ul>
 {% for post in used_by[c.id] %}
-            <li><a href="{{ urls.path(post.slug ~ '/') }}">{{ post.title }}</a></li>
+          <li><a href="{{ urls.path(post.slug ~ '/') }}">{{ post.title }}</a></li>
 {% endfor %}
-          </ul>
+        </ul>
 {% else %}
-          <span class="term__used-label">아직 이 개념을 쓴 글이 없습니다.</span>
+        <p class="term__used-label">아직 이 개념을 쓴 글이 없습니다.</p>
 {% endif %}
-        </dd>
       </div>
+    </article>
 {% endfor %}
-    </dl>
+  </div>
 {% endblock %}

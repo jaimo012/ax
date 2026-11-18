@@ -4,3 +4,4 @@ base_url: https://jaimo012.github.io/ax
 author_name: "{{AUTHOR_NAME}}"   # 실명 또는 필명. 나중에 이 한 줄만 바꾸면 전체 반영
 contact_email: "{{CONTACT_EMAIL}}"
 lang: ko
+default_category: 관찰 노트   # 글 머리의 분류 라벨. 원고 front matter 에 category: 가 있으면 그 값을 쓴다

@@ -2,20 +2,33 @@
 {% block content %}
     <article class="post">
       <header class="post__head">
+        <p class="post__category">{{ post.category }}</p>
         <h1 class="post__title">{{ post.title }}</h1>
         <p class="post__meta">
           <time datetime="{{ post.date.isoformat() }}">{{ post.date | kdate }}</time>
 {% if post.updated != post.date %}
-          · 수정 <time datetime="{{ post.updated.isoformat() }}">{{ post.updated | kdate }}</time>
+          <span>수정 <time datetime="{{ post.updated.isoformat() }}">{{ post.updated | kdate }}</time></span>
 {% endif %}
-          · <span class="post__author">{{ site.author_name }}</span>
+          <span>{{ post.reading_minutes }}분 읽기</span>
+          <span class="post__author">{{ site.author_name }}</span>
         </p>
       </header>
 
-      <section class="answer" aria-label="요약 답변">
+      <section class="answer" aria-label="한 줄 답">
         <p class="answer__label">한 줄 답</p>
         <p class="answer__text">{{ post.summary }}</p>
       </section>
+
+{% if post.toc %}
+      <nav class="toc" aria-labelledby="toc-h">
+        <p class="toc__title" id="toc-h">목차</p>
+        <ol class="toc__list">
+{% for item in post.toc %}
+          <li><a href="#{{ item.id }}">{{ item.name }}</a></li>
+{% endfor %}
+        </ol>
+      </nav>
+{% endif %}
 
       <div class="prose">
 {{ post.body_html | safe }}
@@ -23,33 +36,43 @@
 
 {% if post.concept_entries %}
       <section class="concepts" aria-labelledby="concepts-h">
-        <h2 id="concepts-h">이 글에 쓰인 개념</h2>
-        <dl class="concepts__list">
+        <h2 id="concepts-h" class="block-title">이 글에 쓰인 개념</h2>
 {% for c in post.concept_entries %}
-          <div class="concept">
-            <dt><a href="{{ urls.path('glossary/') }}#{{ c.id }}">{{ c.ko }}</a> <span class="concept__en">{{ c.en }}</span></dt>
-            <dd>{{ c.definition }}</dd>
-          </div>
-{% endfor %}
-        </dl>
-      </section>
-{% endif %}
-
-{% if post.faq %}
-      <section class="faq" aria-labelledby="faq-h">
-        <h2 id="faq-h">자주 묻는 질문</h2>
-{% for item in post.faq %}
-        <div class="faq__item">
-          <h3>{{ item.q }}</h3>
-          <p>{{ item.a }}</p>
+        <div class="concept-card">
+          <p class="concept-card__term">{{ c.ko }} <span class="concept-card__en">{{ c.en }}</span></p>
+          <p class="concept-card__def">{{ c.definition }}</p>
+          <a class="concept-card__link" href="{{ urls.path('glossary/') }}#{{ c.id }}">개념 사전에서 보기 →</a>
         </div>
 {% endfor %}
       </section>
 {% endif %}
 
-      <aside class="cta">
+{% if post.faq %}
+      <section class="faq" aria-labelledby="faq-h">
+        <h2 id="faq-h" class="block-title">자주 묻는 질문</h2>
+{% for item in post.faq %}
+        <div class="faq__item">
+          <h3 class="faq__q">{{ item.q }}</h3>
+          <p class="faq__a">{{ item.a }}</p>
+        </div>
+{% endfor %}
+      </section>
+{% endif %}
+
+      <aside class="cta" aria-label="커피챗">
         <p class="cta__text">이런 문제를 고민하고 있다면 커피챗 환영합니다.</p>
-        <a class="cta__btn" href="{{ mailto }}">메일 보내기</a>
+        <a class="cta__link" href="{{ mailto }}">메일 보내기 →</a>
       </aside>
+
+{% if show_neighbors and (older or newer) %}
+      <nav class="neighbors" aria-label="이전 글과 다음 글">
+{% if older %}
+        <a class="neighbors__item neighbors__item--prev" href="{{ urls.path(older.slug ~ '/') }}"><span class="neighbors__label">← 이전 글</span>{{ older.title }}</a>
+{% endif %}
+{% if newer %}
+        <a class="neighbors__item neighbors__item--next" href="{{ urls.path(newer.slug ~ '/') }}"><span class="neighbors__label">다음 글 →</span>{{ newer.title }}</a>
+{% endif %}
+      </nav>
+{% endif %}
     </article>
 {% endblock %}
